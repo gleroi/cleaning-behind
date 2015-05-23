@@ -1,84 +1,20 @@
 #include <iostream>
 #include <SDL.h>
-#include <vector>
 #include <random>
 #include <chrono>
-
-const int WINDOW_Y_MAX = 1080;
-const int WINDOW_X_MAX = 1920;
-
-const int MAP_X_MAX = 1500;
-const int MAP_Y_MAX = 1500;
-
-const int tile_h = 32;
-const int tile_w = 32;
-
-const int TILE_Y_MAX = WINDOW_Y_MAX / tile_h + 1;
-const int TILE_X_MAX = WINDOW_X_MAX / tile_w;
+#include "KeyboardInput.h"
+#include "GameState.h"
 
 
-enum TileType : int {
-    GROUND = 0,
-    STAIN = 1,
-    WALL = 2,
-};
 
-double TILES[MAP_X_MAX * MAP_Y_MAX];
-
-const double SPEED = tile_h * 4;
-
-struct Player {
-    int x = TILE_X_MAX / 2;
-    int y = TILE_Y_MAX / 2;
-
-    double x_intile = tile_w / 2;
-    double y_intile = tile_h / 2;
-
-    double speed_x;
-    double speed_y;
-
-};
-
-Player PLAYER;
-
-void InitGame() {
-    for (int y = 0; y < MAP_Y_MAX; y++) {
-        for (int x = 0; x < MAP_X_MAX; x++) {
-            int value = rand() / (RAND_MAX * 1.0f) * 100.f;
-
-            int wall_chance = 75;
-            {
-                int left = fmin(fmax(0, x - 1), MAP_X_MAX - 1);
-                int top = fmin(fmax(0, y), MAP_Y_MAX - 1);
-                if (TILES[top * MAP_Y_MAX + left] > 1) {
-                    wall_chance -= 10;
-                }
-            }
-            {
-                int left = fmin(fmax(0, x), MAP_X_MAX - 1);
-                int top = fmin(fmax(0, y - 1), MAP_Y_MAX - 1);
-                if (TILES[top * MAP_Y_MAX + left] > 1) {
-                    wall_chance -= 10;
-                }
-            }
-
-            TileType tile = TileType::GROUND;
-            if (value > 95) {
-                tile = TileType::STAIN;
-            }
-            else if (value > wall_chance) {
-                tile = TileType::WALL;
-            }
-            TILES[y * MAP_Y_MAX + x] = tile;
-        }
-    }
-}
-
-void Render(SDL_Renderer& ren)
+void Render(SDL_Renderer& ren, GameState& game)
 {
+    Player& PLAYER = game.PLAYER;
+    GameState::Map& TILES = game.TILES;
+
     SDL_Rect rect;
-    rect.h = tile_h;
-    rect.w = tile_w;
+    rect.h = TILE_HEIGHT;
+    rect.w = TILE_WIDTH;
 
     int left = (PLAYER.x / TILE_X_MAX) * TILE_X_MAX;
     int top = (PLAYER.y / TILE_Y_MAX) * TILE_Y_MAX;
@@ -90,8 +26,8 @@ void Render(SDL_Renderer& ren)
         for (int x = left; x < left + TILE_X_MAX; x++) {
             double tile = TILES[y * MAP_Y_MAX + x];
 
-            rect.x = (x - left) * tile_w;
-            rect.y = (y - top) * tile_h;
+            rect.x = (x - left) * TILE_WIDTH;
+            rect.y = (y - top) * TILE_HEIGHT;
             if (tile <= 1)
             {
                 SDL_SetRenderDrawColor(&ren, tile * 255, 0, 0, 0);
@@ -103,15 +39,15 @@ void Render(SDL_Renderer& ren)
         }
     }
 
-    rect.x = (PLAYER.x - left) * tile_w;
-    rect.y = (PLAYER.y - top) * tile_h;
+    rect.x = (PLAYER.x - left) * TILE_WIDTH;
+    rect.y = (PLAYER.y - top) * TILE_HEIGHT;
     SDL_SetRenderDrawColor(&ren, 255, 255, 0, 0);
     SDL_RenderDrawRect(&ren, &rect);
 
-    int px = (PLAYER.x - left) * tile_w + PLAYER.x_intile;
-    int py = (PLAYER.y - top) * tile_h + PLAYER.y_intile;
-    rect.x = px - (tile_w / 2);
-    rect.y = py - (tile_h / 2);
+    int px = (PLAYER.x - left) * TILE_WIDTH + PLAYER.x_intile;
+    int py = (PLAYER.y - top) * TILE_HEIGHT + PLAYER.y_intile;
+    rect.x = px - (TILE_WIDTH / 2);
+    rect.y = py - (TILE_HEIGHT / 2);
 
     SDL_SetRenderDrawColor(&ren, 0, 255, 255, 0);
     SDL_RenderFillRect(&ren, &rect);
@@ -122,54 +58,13 @@ void Render(SDL_Renderer& ren)
 
 }
 
-int cl = 0;
-
-void CleanUp() {
-    double dirty = TILES[PLAYER.y * MAP_Y_MAX + PLAYER.x];
-    TILES[PLAYER.y * MAP_Y_MAX + PLAYER.x] = fmax(0, dirty - 0.25);
-}
-
-void HandleKeyDown(SDL_Event& e)
+void UpdateGame(double dt, GameState& game)
 {
-    switch (e.key.keysym.sym)
-    {
-    case SDLK_LEFT:
-        PLAYER.speed_x = -SPEED;
-        break;
-    case SDLK_RIGHT:
-        PLAYER.speed_x = SPEED;
-        break;
-    case SDLK_UP:
-        PLAYER.speed_y = -SPEED;
-        break;
-    case SDLK_DOWN:
-        PLAYER.speed_y = SPEED;
-        break;
-    }
-}
+    Player& PLAYER = game.PLAYER;
+    GameState::Map& TILES = game.TILES;
 
-
-void HandleKeyUp(SDL_Event& e)
-{
-    switch (e.key.keysym.sym)
-    {
-    case SDLK_LEFT:
-    case SDLK_RIGHT:
-        PLAYER.speed_x = 0;
-        break;
-    case SDLK_UP:
-    case SDLK_DOWN:
-        PLAYER.speed_y = 0;
-        break;
-    case SDLK_SPACE:
-        CleanUp();
-        break;
-    }
-}
-
-void UpdateGame(double dt) {
-    double x_pix = PLAYER.x * tile_w + PLAYER.x_intile;
-    double y_pix = PLAYER.y * tile_h + PLAYER.y_intile;
+    double x_pix = PLAYER.x * TILE_WIDTH + PLAYER.x_intile;
+    double y_pix = PLAYER.y * TILE_HEIGHT + PLAYER.y_intile;
 
     double dx = PLAYER.speed_x * dt;
     double dy = PLAYER.speed_y * dt;
@@ -177,11 +72,11 @@ void UpdateGame(double dt) {
     x_pix = x_pix + dx;
     y_pix = y_pix + dy;
 
-    int new_x = x_pix / tile_w;
-    double new_x_intile = fmod(x_pix, tile_w);
+    int new_x = x_pix / TILE_WIDTH;
+    double new_x_intile = fmod(x_pix, TILE_WIDTH);
 
-    int new_y = y_pix / tile_h;
-    double new_y_intile = fmod(y_pix, tile_h);
+    int new_y = y_pix / TILE_HEIGHT;
+    double new_y_intile = fmod(y_pix, TILE_HEIGHT);
 
     double tile = TILES[new_y * MAP_Y_MAX + new_x];
     if (tile <= 1) 
@@ -223,10 +118,9 @@ int main(int, char**)
         SDL_Quit();
         return 1;
     }
-
-    srand(42);
-
-    InitGame();
+    
+    GameState game;
+    game.InitGame();
 
     bool quit = false;
     SDL_Event e;
@@ -236,7 +130,7 @@ int main(int, char**)
     double elapsed_seconds = 0;
     int frame = 0;
 
-    //Handle events on queue
+    KeyboardInput keyboard;
     while (!quit)
     {
         if (SDL_PollEvent(&e) != 0) 
@@ -245,27 +139,19 @@ int main(int, char**)
             {
                 quit = true;
             }
-
-            if (e.type == SDL_KEYDOWN) 
-            {
-                HandleKeyDown(e);
-            }
-            else if (e.type == SDL_KEYUP) 
-            {
-                HandleKeyUp(e);
-            }
+            keyboard.HandleEvent(e, game);
         }
 
         steady_clock::time_point now = steady_clock::now();
         steady_clock::duration delta = now - last;
         double dt_s = delta.count() * 1.f / steady_clock::duration::period::den;
         last = now;
-        UpdateGame(dt_s);
+        UpdateGame(dt_s, game);
 
         //First clear the renderer
         SDL_RenderClear(ren);
 
-        Render(*ren);
+        Render(*ren, game);
 
         SDL_RenderPresent(ren);
 
