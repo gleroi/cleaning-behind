@@ -4,26 +4,28 @@
 #include <random>
 #include <chrono>
 
-const int WINDOW_Y_MAX = 480;
-const int WINDOW_X_MAX = 640;
+const int WINDOW_Y_MAX = 1080;
+const int WINDOW_X_MAX = 1920;
 
 const int MAP_X_MAX = 1500;
 const int MAP_Y_MAX = 1500;
 
-const int TILE_Y_MAX = WINDOW_Y_MAX / 32;
-const int TILE_X_MAX = WINDOW_X_MAX / 32;
+const int tile_h = 32;
+const int tile_w = 32;
 
-const int tile_h = WINDOW_Y_MAX / TILE_Y_MAX;
-const int tile_w = WINDOW_X_MAX / TILE_X_MAX;
+const int TILE_Y_MAX = WINDOW_Y_MAX / tile_h + 1;
+const int TILE_X_MAX = WINDOW_X_MAX / tile_w;
+
 
 enum TileType : int {
     GROUND = 0,
     STAIN = 1,
+    WALL = 2,
 };
 
-std::vector<double>& TILES = *(new std::vector<double>(MAP_X_MAX * MAP_Y_MAX));
+double TILES[MAP_X_MAX * MAP_Y_MAX];
 
-const double SPEED = 50;
+const double SPEED = tile_h * 4;
 
 struct Player {
     int x = TILE_X_MAX / 2;
@@ -44,7 +46,29 @@ void InitGame() {
         for (int x = 0; x < MAP_X_MAX; x++) {
             int value = rand() / (RAND_MAX * 1.0f) * 100.f;
 
-            TileType tile = value > 80 ? TileType::STAIN : TileType::GROUND;
+            int wall_chance = 75;
+            {
+                int left = fmin(fmax(0, x - 1), MAP_X_MAX - 1);
+                int top = fmin(fmax(0, y), MAP_Y_MAX - 1);
+                if (TILES[top * MAP_Y_MAX + left] > 1) {
+                    wall_chance -= 10;
+                }
+            }
+            {
+                int left = fmin(fmax(0, x), MAP_X_MAX - 1);
+                int top = fmin(fmax(0, y - 1), MAP_Y_MAX - 1);
+                if (TILES[top * MAP_Y_MAX + left] > 1) {
+                    wall_chance -= 10;
+                }
+            }
+
+            TileType tile = TileType::GROUND;
+            if (value > 95) {
+                tile = TileType::STAIN;
+            }
+            else if (value > wall_chance) {
+                tile = TileType::WALL;
+            }
             TILES[y * MAP_Y_MAX + x] = tile;
         }
     }
@@ -59,14 +83,22 @@ void Render(SDL_Renderer& ren)
     int left = (PLAYER.x / TILE_X_MAX) * TILE_X_MAX;
     int top = (PLAYER.y / TILE_Y_MAX) * TILE_Y_MAX;
 
-    std::cout << "top,left: " << top << ", " << left << std::endl;
-    std::cout << "player: " << PLAYER.x << ", " << PLAYER.y << std::endl;
+    //std::cout << "top,left: " << top << ", " << left << std::endl;
+    //std::cout << "player: " << PLAYER.x << ", " << PLAYER.y << std::endl;
 
     for (int y = top; y < top + TILE_Y_MAX; y++) {
         for (int x = left; x < left + TILE_X_MAX; x++) {
+            double tile = TILES[y * MAP_Y_MAX + x];
+
             rect.x = (x - left) * tile_w;
             rect.y = (y - top) * tile_h;
-            SDL_SetRenderDrawColor(&ren, TILES[y * MAP_Y_MAX + x] * 255, 0, 0, 0);
+            if (tile <= 1)
+            {
+                SDL_SetRenderDrawColor(&ren, tile * 255, 0, 0, 0);
+            }
+            else {
+                SDL_SetRenderDrawColor(&ren, 255, 255, 255, 0);
+            }
             SDL_RenderFillRect(&ren, &rect);
         }
     }
@@ -83,6 +115,11 @@ void Render(SDL_Renderer& ren)
 
     SDL_SetRenderDrawColor(&ren, 0, 255, 255, 0);
     SDL_RenderFillRect(&ren, &rect);
+
+    SDL_SetRenderDrawColor(&ren, 0, 0, 0, 0);
+    SDL_RenderDrawLine(&ren, rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
+    SDL_RenderDrawLine(&ren, rect.x + rect.w, rect.y, rect.x, rect.y + rect.h);
+
 }
 
 int cl = 0;
@@ -140,16 +177,26 @@ void UpdateGame(double dt) {
     x_pix = x_pix + dx;
     y_pix = y_pix + dy;
 
-    PLAYER.x = x_pix / tile_w;
-    PLAYER.x_intile = fmod(x_pix, tile_w);
+    int new_x = x_pix / tile_w;
+    double new_x_intile = fmod(x_pix, tile_w);
 
-    PLAYER.y = y_pix / tile_h;
-    PLAYER.y_intile = fmod(y_pix, tile_h);
+    int new_y = y_pix / tile_h;
+    double new_y_intile = fmod(y_pix, tile_h);
+
+    double tile = TILES[new_y * MAP_Y_MAX + new_x];
+    if (tile <= 1) 
+    {
+        PLAYER.x = new_x;
+        PLAYER.x_intile = new_x_intile;
+
+        PLAYER.y = new_y;
+        PLAYER.y_intile = new_y_intile;
+    }
 
     //std::cout << "delta t: " << dt << std::endl;
     //std::cout << "speed: " << PLAYER.speed_x << ", " << PLAYER.speed_y << std::endl;
     //std::cout << "delta pos: " << dx << ", " << dy << std::endl;
-    //std::cout << "position: " << x_pix << ", " << y_pix << std::endl;
+    //std::cout << "position: " << new_x << ", " << new_y << " val: " << tile << std::endl;
 }
 
 int main(int, char**)
@@ -160,7 +207,7 @@ int main(int, char**)
         return 1;
     }
 
-    SDL_Window *win = SDL_CreateWindow("Hello World!", 100, 100, 640, 480, SDL_WINDOW_SHOWN);
+    SDL_Window *win = SDL_CreateWindow("Cleaning Behind", 100, 100, WINDOW_X_MAX, WINDOW_Y_MAX, SDL_WINDOW_SHOWN);
     if (win == nullptr)
     {
         std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
@@ -177,7 +224,7 @@ int main(int, char**)
         return 1;
     }
 
-    srand(5142);
+    srand(42);
 
     InitGame();
 
@@ -186,6 +233,8 @@ int main(int, char**)
 
     using std::chrono::steady_clock;
     steady_clock::time_point last = steady_clock::now();
+    double elapsed_seconds = 0;
+    int frame = 0;
 
     //Handle events on queue
     while (!quit)
@@ -209,8 +258,9 @@ int main(int, char**)
 
         steady_clock::time_point now = steady_clock::now();
         steady_clock::duration delta = now - last;
+        double dt_s = delta.count() * 1.f / steady_clock::duration::period::den;
         last = now;
-        UpdateGame(delta.count() * 1.f / steady_clock::duration::period::den);
+        UpdateGame(dt_s);
 
         //First clear the renderer
         SDL_RenderClear(ren);
@@ -218,5 +268,13 @@ int main(int, char**)
         Render(*ren);
 
         SDL_RenderPresent(ren);
+
+        elapsed_seconds += dt_s;
+        frame += 1;
+        if (elapsed_seconds >= 5) {
+            std::cout << "FPS: " << frame / elapsed_seconds << std::endl;
+            frame = 0;
+            elapsed_seconds = 0;
+        }
     }
 }
