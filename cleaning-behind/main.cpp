@@ -5,7 +5,7 @@
 #include "KeyboardInput.h"
 #include "GameState.h"
 
-
+SDL_Texture* ground = nullptr;
 
 void Render(SDL_Renderer& ren, GameState& game)
 {
@@ -31,11 +31,12 @@ void Render(SDL_Renderer& ren, GameState& game)
             if (tile <= 1)
             {
                 SDL_SetRenderDrawColor(&ren, tile * 255, 0, 0, 0);
+                SDL_RenderCopy(&ren, ground, nullptr, &rect);
             }
             else {
                 SDL_SetRenderDrawColor(&ren, 255, 255, 255, 0);
+                SDL_RenderFillRect(&ren, &rect);
             }
-            SDL_RenderFillRect(&ren, &rect);
         }
     }
 
@@ -118,6 +119,10 @@ int main(int, char**)
         SDL_Quit();
         return 1;
     }
+
+    SDL_Surface* img = SDL_LoadBMP("resources/carrelage.bmp");
+    ground = SDL_CreateTextureFromSurface(ren, img);
+    SDL_FreeSurface(img);
     
     GameState game;
     game.InitGame();

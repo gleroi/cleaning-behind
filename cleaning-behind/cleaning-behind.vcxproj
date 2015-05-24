@@ -94,6 +94,9 @@
     <ClInclude Include="GameState.h" />
     <ClInclude Include="KeyboardInput.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="resources\carrelage.bmp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
